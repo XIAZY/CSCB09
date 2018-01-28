@@ -6,10 +6,15 @@
         {
             "label": "build C program",
             "type": "shell",
-            "command": "clang",
+            "linux":{
+                "command": "gcc"
+            },
+            "osx":{
+                "command": "clang"
+            },
             "args": [
                 "-g",
-                "-o ${fileBasenameNoExtension}",
+                "-o ${fileDirname}/${fileBasenameNoExtension}",
                 "${file}"
             ],
             "group": {
