@@ -39,9 +39,15 @@ int main() {
       } else {
         //   next operator is not concat
         int real = cachedDigit * 10 + digit;
-        int prevOperator = operators[digitAlloc - 1];
-        // get previous operator and update result
-        result = getResult(prevOperator, result, real);
+        if (digitAlloc > 0) {
+          // not first digit, update result from calculation
+          int prevOperator = operators[digitAlloc - 1];
+          // get previous operator and update result
+          result = getResult(prevOperator, result, real);
+        } else {
+          // first digit, just copy the value
+          result = real;
+        }
         // reset cashedDigit
         cachedDigit = 0;
         // store real value to array
@@ -56,24 +62,23 @@ int main() {
     }
     // digits or operators dont use full memory provided in the array
     if (digitAlloc < 5) {
-        // add -1 to indicate ending
+      // add -1 to indicate ending
       operators[digitAlloc] = -1;
       digits[digitAlloc + 1] = -1;
     }
     // if result is 47, print it out
-    // if (result == 47) {
-        printf("%d\t", result);
+    if (result == 47) {
       printExprssion(digits, operators);
-    // }
+    }
   }
   return 0;
 }
 
 // function used for printing
 void printExprssion(int digits[], int operators[]) {
-    // print the first digit
+  // print the first digit
   printf("%d", digits[0]);
-//   iterate the array
+  //   iterate the array
   for (int i = 1; i < 6; i++) {
     int digit = digits[i];
     // if find ending, break
@@ -84,7 +89,7 @@ void printExprssion(int digits[], int operators[]) {
     int operator= operators[i - 1];
     printf("%c%d", getOpreatorChar(operator), digit);
   }
-//   print the last newline symbol
+  //   print the last newline symbol
   printf("\n");
 }
 
@@ -102,7 +107,7 @@ int getResult(int operator, int numberOne, int numberTwo) {
       result = numberOne - numberTwo;
       break;
     case -1:
-    // array ends, copy the value
+      // array ends, copy the value
       result = numberTwo;
   }
   return result;

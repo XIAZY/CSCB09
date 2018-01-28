@@ -1,0 +1,10 @@
+URL=$1
+DUMP=`lynx -dump $URL`
+echo "$DUMP"
+
+while read REFNUM
+do
+    URL=$(echo "$DUMP"|sed -n s/^\ *$REFNUM\.\ \\\(http.*\\\)/\\\1/p)
+    DUMP=`lynx -dump $URL`
+    echo "$DUMP"
+done
