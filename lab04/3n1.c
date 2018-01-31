@@ -9,6 +9,7 @@ int main(int argc, char **argv) {
     return (1);
   } else {
     while (n != 1) {
+      // keep looping if n is not 1
       if (n % 2 == 0) {
         // n is even
         n = n / 2;
@@ -16,6 +17,7 @@ int main(int argc, char **argv) {
         // n is odd
         n = n * 3 + 1;
       }
+      //   print n
       printf("%d\n", n);
     }
   }
