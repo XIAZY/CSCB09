@@ -51,20 +51,23 @@ void cut(int width, bool acceptPunct, FILE* file) {
   while (c != EOF) {
     if (c == '\n') {
       // normal \n, do nothing special
-      printf("%s", buffer);
-      buffer[widthCount] = '\n';
-      buffer[widthCount+1] = '\0';
-      widthCount = 0;
+      printf("%s\n", buffer);
+        widthCount=0;
+      buffer[widthCount] = '\0';
     } else if (widthCount == width) {
       // full
-      buffer[widthCount] = c;
+      buffer[widthCount] = (char) c;
       buffer[widthCount + 1] = '\0';
       // find where i should cut the string
       int cutPoint = findCutPoint(buffer, width, acceptPunct);
-      if (cutPoint >= 0) {
+        if (cutPoint == 0) {
+            cutPoint = width;
+            printf("%.*s\n", width, buffer);
+        } else if (cutPoint > 0) {
         // positive return value, space found.
         // delete the extra space at end
-        printf("%.*s\n", cutPoint - 1, buffer);
+        printf("%.*s\n", cutPoint, buffer);
+          cutPoint++;
       } else {
         // negative value, punc found
         // get the abs value and go
@@ -72,12 +75,13 @@ void cut(int width, bool acceptPunct, FILE* file) {
         printf("%.*s\n", cutPoint, buffer);
       }
       // copy the rest string
-      printf("%s\n", buffer);
-      strcpy(buffer, buffer + cutPoint);
-      widthCount = width - cutPoint + 1;
+      char tempBuffer[width];
+      strcpy(tempBuffer, buffer + cutPoint);
+       widthCount = width - cutPoint + 1;
+      strcpy(buffer, tempBuffer);
     } else {
       // ongoing string
-      buffer[widthCount] = c;
+      buffer[widthCount] = (char) c;
       widthCount++;
       buffer[widthCount] = '\0';
     }
@@ -94,19 +98,21 @@ void cut(int width, bool acceptPunct, FILE* file) {
 }
 
 int findCutPoint(char* str, int width, bool acceptPunct) {
-  for (int i = width - 1; i > 0; i--) {
+  for (int i = width; i > 0; i--) {
     // return positive if space found, negative if punc found
     if (acceptPunct) {
       if (str[i] == ' ') {
-        return i + 1;
-      } else if (ispunct(str[i]) != 0) {
-        return -(i + 1);
+        return i;
+      } else if (ispunct(str[i]) != 0 && i == width) {
+        return -(i);
+      } else if (ispunct(str[i])) {
+          return -(i+1);
       }
     } else {
       if (str[i] == ' ') {
-        return i + 1;
+        return i;
       }
     }
   }
-  return width;
+  return 0;
 }
