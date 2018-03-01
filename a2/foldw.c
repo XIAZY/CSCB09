@@ -1,9 +1,10 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <string.h>
 
 void cut(int, bool, FILE*);
-int findCutPoint(int*, int, bool);
+int findCutPoint(char*, int, bool);
 
 int main(int argc, char** argv) {
   int opt;
@@ -23,7 +24,7 @@ int main(int argc, char** argv) {
 }
 
 void cut(int width, bool acceptPunct, FILE* file) {
-  int buffer[width + 1];
+  char buffer[width + 1];
   int widthCount = 0;
   int c;
   if (file == NULL) {
@@ -36,16 +37,15 @@ void cut(int width, bool acceptPunct, FILE* file) {
   while (c != EOF) {
     if (c == '\n') {
       buffer[widthCount] = '\0';
-      printf("%s", buffer);
       widthCount = 0;
     } else if (widthCount == width) {
-      buffer[widthCount] = '\0';
+      buffer[widthCount] = c;
+      buffer[widthCount+1] = '\0';
       int cutPoint = findCutPoint(buffer, width, acceptPunct);
-      printf("%.*s", cutPoint, buffer);
+      printf("%.*s\n", cutPoint, buffer);
       strcpy(buffer, buffer + cutPoint);
-      widthCount = width - cutPoint;
+      widthCount = width - cutPoint +1;
     } else {
-      printf("%s\n", buffer);
       buffer[widthCount] = c;
       widthCount++;
       buffer[widthCount] = '\0';
@@ -58,10 +58,11 @@ void cut(int width, bool acceptPunct, FILE* file) {
       c = fgetc(file);
     }
   }
-  printf("%s", buffer);
+  // printf("%d, %d, %d\n", buffer[0], buffer[1], buffer[2]);
+  printf("%s\n", buffer);
 }
 
-int findCutPoint(int* str, int width, bool acceptPunct) {
+int findCutPoint(char* str, int width, bool acceptPunct) {
   for (int i = width - 1; i <= 0; i--) {
     if (acceptPunct) {
       if (ispunct(str[i]) != 0 || str[i] == ' ') {
