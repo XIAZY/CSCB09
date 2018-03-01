@@ -6,7 +6,7 @@ bool isPal(char*);
 
 int main(int argc, char** argv) {
     if (argc != 2) {
-        printf("need exact one argument. quitting\n");
+        fprintf(stderr, "usage: ispalindrome anystring\n");
         return 1;
     }
 
