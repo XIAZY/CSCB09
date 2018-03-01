@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <stdlib.h>
+#include <ctype.h>
 
 void cut(int, bool, FILE*);
 int findCutPoint(char*, int, bool);
