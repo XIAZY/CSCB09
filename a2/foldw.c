@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
+#include <stdlib.h>
 
 void cut(int, bool, FILE*);
 int findCutPoint(char*, int, bool);
@@ -20,7 +21,7 @@ int main(int argc, char** argv) {
         break;
     }
   }
-  cut(width, false, NULL);
+  cut(width, acceptPunct, NULL);
 }
 
 void cut(int width, bool acceptPunct, FILE* file) {
