@@ -12,7 +12,6 @@ int main(int argc, char** argv) {
 
     char* input = argv[1];
     if (!isPal(input)) {
-        printf("not pal\n");
         return 1;
     }
 
