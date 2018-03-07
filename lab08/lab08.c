@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 
 int main(int argc, char **argv)
 {
@@ -14,6 +15,7 @@ int main(int argc, char **argv)
         perror(argv[1]);
         exit(1);
     }
+
     while ((c = getc(fp)) > 0)
 	putchar(c);
     fclose(fp);
