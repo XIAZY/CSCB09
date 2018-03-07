@@ -10,7 +10,10 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    fp = fopen(argv[1], "r+");
+    if ((fp = fopen(argv[1], "r+")) == NULL) {
+        perror(argv[1]);
+        exit(1);
+    }
     while ((c = getc(fp)) > 0)
 	putchar(c);
     fclose(fp);
