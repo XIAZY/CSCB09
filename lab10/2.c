@@ -37,10 +37,11 @@ void filllist()
 
 
 void printall()
-{
-    while (head!=NULL) {
-        printf("%d: %d\n", head->key, head->data);
-        head=head->next;
+{   
+    struct item *node = head;
+    while (node!=NULL) {
+        printf("%d: %d\n", node->key, node->data);
+        node=node->next;
     }
     printf("[end]\n");
 }
