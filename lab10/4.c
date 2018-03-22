@@ -53,18 +53,13 @@ void insert(int key, int data)
     new_node->data=data;
     new_node->next=NULL;
 
-    if (head == NULL) {
+    if (head == NULL || head->key>key) {
+        new_node->next=head;
         head=new_node;
         return;
     }
 
     struct item *node = head;
-
-    if (node->key>key) {
-        new_node->next=node;
-        head=new_node;
-        return;
-    }
 
     while (node->next != NULL) {
         struct item *next=node->next;
