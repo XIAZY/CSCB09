@@ -109,9 +109,8 @@ char** get_args(char* line) {
     line[length - 1] = '\0';
     length--;
   }
-  const char comment[2] = "#";
+  // const char comment[2] = "#";
 
-  bool is_empty = true;
   // char * comment_less_line=strtok(line, comment);
   // printf("!!%s\n", comment_less_line);
   // int column_num=0;
@@ -161,8 +160,8 @@ int exec(bool respawn, char* command) {
     perror("/bin/sh");
     return (1);
   } else if (respawn) {
-    int status, pid;
-    pid = wait(&status);
+    int status;
+    wait(&status);
     exec(1, command);
     return (0);
   }
