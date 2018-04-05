@@ -12,6 +12,8 @@
 int port = 3000;
 int listenfd;
 
+struct sockaddr_in q;
+
 #define MAXNAME 80 /* maximum permitted name size, not including \0 */
 
 #define NPITS 6 /* number of pits on a side, not including the end pit */
@@ -59,7 +61,6 @@ int main(int argc, char **argv) {
 
   // }
   int clientfd;
-  struct sockaddr_in q;
   fd_set fds;
   int len = sizeof q;
   //   if ((listenfd = accept(listenfd, (struct sockaddr *)&q, &len)) < 0) {
@@ -91,7 +92,8 @@ int main(int argc, char **argv) {
       default:
         if (FD_ISSET(listenfd, &fds)) {
           // new connection
-          printf("a new client is connecting\n");
+        //   print info to console
+        printf("connection from %s\r\n", inet_ntoa(q.sin_addr));
           if ((clientfd = accept(listenfd, (struct sockaddr *)&q, &len)) < 0) {
             perror("accept new");
             return 1;
@@ -374,21 +376,17 @@ bool is_name_duplicate(char *name) {
 }
 
 char *get_name(int fd) {
-  char welcome[20] = "Welcome to Mancala. ";
-  char again[20] = "What is your name?\r\n";
-  char taken_msg[100] =
-      "Sorry, someone else already has that name.  Please choose another.\r\n";
-  write_output(fd, welcome);
+  write_output(fd, "Welcome to Mancala. ");
   bool is_set = false;
   char *name;
   while (!is_set) {
-    write_output(fd, again);
+    write_output(fd, "What is your name?\r\n");
     name = get_input_without_newline(get_input(fd, MAXNAME));
     if (name != NULL) {
       if (strlen(name) == 0) {
         is_set = false;
       } else if (is_name_duplicate(name)) {
-        write_output(fd, taken_msg);
+        write_output(fd, "Sorry, someone else already has that name.  Please choose another.\r\n");
         is_set = false;
       } else {
         is_set = true;
@@ -420,9 +418,11 @@ char *get_input(int fd, int buffersize) {
     if ((len = read(fd, buff, buffersize - 2)) < 0) {
       perror("read");
     } else if (len == 0) {
+        // EOF
       close(fd);
       delete_player(fd);
       buff = NULL;
+      printf("disconnecting client %s\r\n", inet_ntoa(q.sin_addr));
     } else {
       buff[len] = '\0';
     }
