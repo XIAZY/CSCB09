@@ -49,25 +49,13 @@ extern void your_turn(int);
 extern void their_turn(int);
 
 int main(int argc, char **argv) {
-  // struct player *p;
-  // char msg[MAXNAME + 50];
+  struct player *p;
+  char msg[MAXNAME + 50];
 
   parseargs(argc, argv);
   makelistener();
 
-  // while (!game_is_over()) {
-
-  // }
-
-  // broadcast("Game over!\r\n");
-  // printf("Game over!\n");
-  // for (p = playerlist; p; p = p->next) {
-  // int points, i;
-  // for (points = i = 0; i <= NPITS; i++)
-  //     points += p->pits[i];
-  // printf("%s has %d points\r\n", p->name, points);
-  // snprintf(msg, sizeof msg, "%s has %d points\r\n", p->name, points);
-  // broadcast(msg);
+  //   while (!game_is_over()) {
 
   // }
   int clientfd;
@@ -79,8 +67,8 @@ int main(int argc, char **argv) {
   //     return (1);
   //   }
   char buf[1024];
-  bool is_end = false;
-  while (!is_end) {
+  //   bool is_end = false;
+  while (!game_is_over()) {
     FD_ZERO(&fds);
     FD_SET(listenfd, &fds);
     int maxfd = listenfd;
@@ -122,6 +110,17 @@ int main(int argc, char **argv) {
         }
     }
   }
+  //   }
+
+  broadcast("Game over!\r\n");
+  printf("Game over!\n");
+  for (p = playerlist; p; p = p->next) {
+    int points, i;
+    for (points = i = 0; i <= NPITS; i++) points += p->pits[i];
+    printf("%s has %d points\r\n", p->name, points);
+    snprintf(msg, sizeof msg, "%s has %d points\r\n", p->name, points);
+    broadcast(msg);
+  }
   close(listenfd);
   return (0);
 }
@@ -131,6 +130,7 @@ void move() {
   bool is_set = false;
   char err_msg[128] =
       "Pit numbers you can play go from 0 to 5.  Try again.\r\n";
+  char turn_msg[512];
   while (!is_set) {
     in = get_input_without_newline(get_input(current_player->fd, 128));
     if (in != NULL) {
@@ -157,7 +157,8 @@ void move() {
     struct player *player_to_put = current_player;
     current_player->pits[pit] = 0;
     for (int i = 0; i < pebbles; i++) {
-      if (pit_to_put == NPITS + 1) {
+      if ((pit_to_put == NPITS + 1) ||
+          (pit_to_put == NPITS && (player_to_put->fd != current_player->fd))) {
         // pit overflow
         pit_to_put = 0;
         if (!(player_to_put = player_to_put->next)) {
@@ -168,16 +169,24 @@ void move() {
       pit_to_put++;
     }
     broadcast(game_stat());
-    if (!(current_player = current_player->next)) {
-      current_player = playerlist;
+    if (pit_to_put != 7) {
+      // normal case
+      if (!(current_player = current_player->next)) {
+        current_player = playerlist;
+      }
+
+      your_turn(current_player->fd);
+      snprintf(turn_msg, sizeof(turn_msg), "It is %s's turn.\r\n",
+               current_player->name);
+      broadcast_except(turn_msg, current_player->fd);
+    } else {
+      // extra move
+      your_turn(current_player->fd);
+      snprintf(turn_msg, sizeof(turn_msg), "It is %s's turn.\r\n",
+               current_player->name);
+      broadcast_except(turn_msg, current_player->fd);
+      move();
     }
-    // your move
-    your_turn(current_player->fd);
-    // xxx's move
-    char turn_msg[512];
-    snprintf(turn_msg, sizeof(turn_msg), "It is %s's turn.\r\n",
-             current_player->name);
-    broadcast_except(turn_msg, current_player->fd);
   }
 }
 
@@ -251,6 +260,7 @@ void delete_player(int fd) {
           iter_player->next = iter_player->next->next;
           break;
         }
+        iter_player = iter_player->next;
       }
     }
     snprintf(quit_msg, sizeof(quit_msg), "%s has left the game.\r\n", name);
@@ -258,7 +268,21 @@ void delete_player(int fd) {
   }
   if (current_player != NULL) {
     if (current_player->fd == fd) {
-      current_player = current_player->next;
+      //   current_player = current_player->next;
+      //   if (!current_player) {
+      //       current_player=playerlist;
+      //   }
+      //   if (current_player) {
+      //       your_turn(current_player->fd);
+      //   }
+      if (current_player->next) {
+        current_player = current_player->next;
+      } else {
+        current_player = playerlist;
+      }
+      if (current_player) {
+        your_turn(current_player->fd);
+      }
     }
   }
 }
