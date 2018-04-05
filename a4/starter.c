@@ -62,12 +62,11 @@ int main(int argc, char **argv) {
   // }
   int clientfd;
   fd_set fds;
-  int len = sizeof q;
+  socklen_t len = sizeof q;
   //   if ((listenfd = accept(listenfd, (struct sockaddr *)&q, &len)) < 0) {
   //     perror("accept");
   //     return (1);
   //   }
-  char buf[1024];
   //   bool is_end = false;
   while (!game_is_over()) {
     FD_ZERO(&fds);
@@ -107,7 +106,7 @@ int main(int argc, char **argv) {
             move();
           } else {
             write_output(clientfd, "It is not your move\r\n");
-            char *in = get_input(clientfd, 32);
+            get_input(clientfd, 32);
           }
         }
     }
@@ -141,7 +140,6 @@ void move() {
       } else if (in[0] < '0' || in[0] > '5') {
         write_output(current_player->fd, err_msg);
       } else {
-        int put = atoi(in);
         is_set = true;
       }
     } else {
@@ -222,6 +220,7 @@ int get_fd(struct player *start, fd_set *fds) {
       iter_player = iter_player->next;
     }
   }
+  return -1;
 }
 char *get_input_without_newline(char *in) {
   if (in != NULL) {
