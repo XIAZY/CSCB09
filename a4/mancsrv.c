@@ -286,6 +286,7 @@ void delete_player(int fd) {
       }
       if (current_player) {
         your_turn(current_player->fd);
+        printf("%s's turn\n", current_player->name);
       }
     }
   }
