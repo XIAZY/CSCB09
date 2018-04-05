@@ -93,7 +93,7 @@ int main(int argc, char **argv) {
         if (FD_ISSET(listenfd, &fds)) {
           // new connection
         //   print info to console
-        printf("connection from %s\r\n", inet_ntoa(q.sin_addr));
+        printf("connection from %s\n", inet_ntoa(q.sin_addr));
           if ((clientfd = accept(listenfd, (struct sockaddr *)&q, &len)) < 0) {
             perror("accept new");
             return 1;
@@ -106,7 +106,7 @@ int main(int argc, char **argv) {
           if (clientfd == current_player->fd) {
             move();
           } else {
-            their_turn(clientfd);
+            write_output(clientfd, "It is not your move\r\n");
             char *in = get_input(clientfd, 32);
           }
         }
@@ -119,7 +119,7 @@ int main(int argc, char **argv) {
   for (p = playerlist; p; p = p->next) {
     int points, i;
     for (points = i = 0; i <= NPITS; i++) points += p->pits[i];
-    printf("%s has %d points\r\n", p->name, points);
+    printf("%s has %d points\n", p->name, points);
     snprintf(msg, sizeof msg, "%s has %d points\r\n", p->name, points);
     broadcast(msg);
   }
@@ -152,6 +152,7 @@ void move() {
     char msg[64];
     int pit = atoi(in);
     int pebbles = current_player->pits[pit];
+    printf("%s takes %d pebbles from pit %d\n", current_player->name, pebbles, pit);
     snprintf(msg, sizeof(msg), "You take %d pebbles from pit %d.\r\n", pebbles,
              pit);
     write_output(current_player->fd, msg);
@@ -187,8 +188,10 @@ void move() {
       snprintf(turn_msg, sizeof(turn_msg), "It is %s's turn.\r\n",
                current_player->name);
       broadcast_except(turn_msg, current_player->fd);
+      printf("%s's turn\n", current_player->name);
       move();
     }
+    printf("%s's turn\n", current_player->name);
   }
 }
 
@@ -287,6 +290,9 @@ void delete_player(int fd) {
       }
     }
   }
+  if (!current_player) {
+      printf("No one's turn\n");
+  }
 }
 
 void append_player_to_list(struct player *p) {
@@ -319,6 +325,7 @@ void add_player(int fd) {
   char *name = get_name(fd);
   if (name != NULL) {
     struct player *new_player = get_player(fd, name);
+    printf("%s's name is set to %s\n", inet_ntoa(q.sin_addr), name);
     append_player_to_list(new_player);
     char msg[100];
     snprintf(msg, sizeof msg, "%s has joined the game.\r\n", name);
@@ -419,10 +426,10 @@ char *get_input(int fd, int buffersize) {
       perror("read");
     } else if (len == 0) {
         // EOF
+      printf("disconnecting client %s\r\n", inet_ntoa(q.sin_addr));
       close(fd);
       delete_player(fd);
       buff = NULL;
-      printf("disconnecting client %s\r\n", inet_ntoa(q.sin_addr));
     } else {
       buff[len] = '\0';
     }
