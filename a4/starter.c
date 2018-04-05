@@ -24,22 +24,29 @@ struct player {
   struct player *next;
 } *playerlist = NULL;
 
+struct player *current_player = NULL;
+
 extern void parseargs(int argc, char **argv);
 extern void makelistener();
 extern int compute_average_pebbles();
 extern int game_is_over(); /* boolean */
 extern void broadcast(char *s);
+extern void broadcast_except(char *, int);
 extern void append_player_to_list(struct player *);
 extern struct player *get_player(int, char *);
 extern int get_fd(struct player *, fd_set *);
 extern void delete_player(int);
 extern char *get_input(int, int);
+extern char *get_input_without_newline(char *);
 extern char *get_name(int);
 extern void add_player(int);
 extern void write_output(int, char *);
+extern void move();
 extern bool is_name_duplicate(char *);
 extern char *player_to_string(struct player *);
 extern char *game_stat();
+extern void your_turn(int);
+extern void their_turn(int);
 
 int main(int argc, char **argv) {
   // struct player *p;
@@ -95,8 +102,8 @@ int main(int argc, char **argv) {
         break;
       default:
         if (FD_ISSET(listenfd, &fds)) {
+          // new connection
           printf("a new client is connecting\n");
-          /* so we should accept(), etc */
           if ((clientfd = accept(listenfd, (struct sockaddr *)&q, &len)) < 0) {
             perror("accept new");
             return 1;
@@ -106,15 +113,72 @@ int main(int argc, char **argv) {
         } else {
           //   old connection
           clientfd = get_fd(playerlist, &fds);
-          char *in = get_input(clientfd, 1024);
-          if (in != NULL) {
-            write_output(clientfd, in);
+          if (clientfd == current_player->fd) {
+            move();
+          } else {
+            their_turn(clientfd);
+            char *in = get_input(clientfd, 32);
           }
         }
     }
   }
   close(listenfd);
   return (0);
+}
+
+void move() {
+  char *in;
+  bool is_set = false;
+  char err_msg[128] =
+      "Pit numbers you can play go from 0 to 5.  Try again.\r\n";
+  while (!is_set) {
+    in = get_input_without_newline(get_input(current_player->fd, 128));
+    if (in != NULL) {
+      if (strlen(in) != 1) {
+        write_output(current_player->fd, err_msg);
+      } else if (in[0] < '0' || in[0] > '5') {
+        write_output(current_player->fd, err_msg);
+      } else {
+        int put = atoi(in);
+        is_set = true;
+      }
+    } else {
+      break;
+    }
+  }
+  if (is_set) {
+    char msg[64];
+    int pit = atoi(in);
+    int pebbles = current_player->pits[pit];
+    snprintf(msg, sizeof(msg), "You take %d pebbles from pit %d.\r\n", pebbles,
+             pit);
+    write_output(current_player->fd, msg);
+    int pit_to_put = pit + 1;
+    struct player *player_to_put = current_player;
+    current_player->pits[pit] = 0;
+    for (int i = 0; i < pebbles; i++) {
+      if (pit_to_put == NPITS + 1) {
+        // pit overflow
+        pit_to_put = 0;
+        if (!(player_to_put = player_to_put->next)) {
+          player_to_put = playerlist;
+        }
+      }
+      player_to_put->pits[pit_to_put]++;
+      pit_to_put++;
+    }
+    broadcast(game_stat());
+    if (!(current_player = current_player->next)) {
+      current_player = playerlist;
+    }
+    // your move
+    your_turn(current_player->fd);
+    // xxx's move
+    char turn_msg[512];
+    snprintf(turn_msg, sizeof(turn_msg), "It is %s's turn.\r\n",
+             current_player->name);
+    broadcast_except(turn_msg, current_player->fd);
+  }
 }
 
 void broadcast(char *msg) {
@@ -124,6 +188,17 @@ void broadcast(char *msg) {
     iter_player = iter_player->next;
   }
 }
+
+void broadcast_except(char *msg, int fd) {
+  struct player *iter_player = playerlist;
+  while (iter_player != NULL) {
+    if (iter_player->fd != fd) {
+      write_output(iter_player->fd, msg);
+    }
+    iter_player = iter_player->next;
+  }
+}
+
 int get_fd(struct player *start, fd_set *fds) {
   struct player *iter_player = start;
   while (iter_player != NULL) {
@@ -162,17 +237,28 @@ void write_output(int fd, char *msg) {
   }
 }
 void delete_player(int fd) {
+  char *name;
+  char quit_msg[256];
   if (playerlist != NULL) {
     if (playerlist->fd == fd) {
+      name = playerlist->name;
       playerlist = playerlist->next;
     } else {
       struct player *iter_player = playerlist;
       while (iter_player->next != NULL) {
         if (iter_player->next->fd == fd) {
+          name = iter_player->next->name;
           iter_player->next = iter_player->next->next;
           break;
         }
       }
+    }
+    snprintf(quit_msg, sizeof(quit_msg), "%s has left the game.\r\n", name);
+    broadcast(quit_msg);
+  }
+  if (current_player != NULL) {
+    if (current_player->fd == fd) {
+      current_player = current_player->next;
     }
   }
 }
@@ -193,7 +279,8 @@ struct player *get_player(int fd, char *name) {
     new_player->next = NULL;
     new_player->name = name;
     int pebbles = compute_average_pebbles();
-    int pits[NPITS + 1] = {pebbles,pebbles,pebbles,pebbles,pebbles,pebbles};
+    int pits[NPITS + 1] = {pebbles, pebbles, pebbles,
+                           pebbles, pebbles, pebbles};
     memcpy(new_player->pits, pits, sizeof(pits));
     return new_player;
   } else {
@@ -205,12 +292,31 @@ struct player *get_player(int fd, char *name) {
 void add_player(int fd) {
   char *name = get_name(fd);
   if (name != NULL) {
-    append_player_to_list(get_player(fd, name));
+    struct player *new_player = get_player(fd, name);
+    append_player_to_list(new_player);
     char msg[100];
-    snprintf(msg, sizeof msg, "%s has joined the game\r\n", name);
+    snprintf(msg, sizeof msg, "%s has joined the game.\r\n", name);
     broadcast(msg);
     write_output(fd, game_stat());
+    if (current_player == NULL) {
+      current_player = new_player;
+      your_turn(fd);
+    } else {
+      their_turn(fd);
+    }
   }
+}
+
+void your_turn(int fd) {
+  char turn_msg[16] = "Your move?\r\n";
+  write_output(fd, turn_msg);
+}
+
+void their_turn(int fd) {
+  char turn_msg[512];
+  snprintf(turn_msg, sizeof(turn_msg), "It is %s's turn.\r\n",
+           current_player->name);
+  write_output(fd, turn_msg);
 }
 
 char *game_stat() {
@@ -221,7 +327,7 @@ char *game_stat() {
     struct player *iter_player = playerlist;
     while (iter_player != NULL) {
       strcat(stat, player_to_string(iter_player));
-      strcat(stat, "\n");
+      strcat(stat, "\r\n");
       iter_player = iter_player->next;
     }
   } else {
