@@ -1,6 +1,7 @@
 #include <arpa/inet.h>
 #include <ctype.h>
 #include <netinet/in.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -28,11 +29,17 @@ extern void makelistener();
 extern int compute_average_pebbles();
 extern int game_is_over(); /* boolean */
 extern void broadcast(char *s);
-extern void append_player(struct player *);
-extern struct player *get_player(int);
-extern int get_fd(struct player*, fd_set*);
+extern void append_player_to_list(struct player *);
+extern struct player *get_player(int, char *);
+extern int get_fd(struct player *, fd_set *);
 extern void delete_player(int);
-extern char* get_input(int);
+extern char *get_input(int, int);
+extern char *get_name(int);
+extern void add_player(int);
+extern void write_output(int, char *);
+extern bool is_name_duplicate(char *);
+extern char *player_to_string(struct player *);
+extern char *game_stat();
 
 int main(int argc, char **argv) {
   // struct player *p;
@@ -65,7 +72,8 @@ int main(int argc, char **argv) {
   //     return (1);
   //   }
   char buf[1024];
-  while (strcmp(buf, "STOP") != 0) {
+  bool is_end = false;
+  while (!is_end) {
     FD_ZERO(&fds);
     FD_SET(listenfd, &fds);
     int maxfd = listenfd;
@@ -87,22 +95,21 @@ int main(int argc, char **argv) {
         break;
       default:
         if (FD_ISSET(listenfd, &fds)) {
-          printf(
-              "a new client is connecting\n"); /* so we should accept(), etc */
+          printf("a new client is connecting\n");
+          /* so we should accept(), etc */
           if ((clientfd = accept(listenfd, (struct sockaddr *)&q, &len)) < 0) {
             perror("accept new");
             return 1;
           }
-          append_player(get_player(clientfd));
-          char welcome[100];
-          snprintf(welcome, 100, "your fd is %d\n", clientfd);
-          write(clientfd, welcome, strlen(welcome));
+          add_player(clientfd);
 
         } else {
-        //   old connection
-          clientfd=get_fd(playerlist, &fds);
-          char* in = get_input(clientfd);
-          write(clientfd, in, strlen(in));
+          //   old connection
+          clientfd = get_fd(playerlist, &fds);
+          char *in = get_input(clientfd, 1024);
+          if (in != NULL) {
+            write_output(clientfd, in);
+          }
         }
     }
   }
@@ -110,31 +117,67 @@ int main(int argc, char **argv) {
   return (0);
 }
 
-int get_fd(struct player* start, fd_set* fds) {
-    struct player* iter_player = start;
-    while (iter_player != NULL) {
-        if (FD_ISSET(iter_player->fd, fds)) {
-            return iter_player->fd;
-        } else {
-            iter_player=iter_player->next;
-        }
+void broadcast(char *msg) {
+  struct player *iter_player = playerlist;
+  while (iter_player != NULL) {
+    write_output(iter_player->fd, msg);
+    iter_player = iter_player->next;
+  }
+}
+int get_fd(struct player *start, fd_set *fds) {
+  struct player *iter_player = start;
+  while (iter_player != NULL) {
+    if (FD_ISSET(iter_player->fd, fds)) {
+      return iter_player->fd;
+    } else {
+      iter_player = iter_player->next;
     }
+  }
+}
+char *get_input_without_newline(char *in) {
+  if (in != NULL) {
+    char *buffer = malloc((sizeof(char)) * 1024);
+    if (buffer != NULL) {
+      strcpy(buffer, in);
+      char *lineend;
+      if ((lineend = strchr(buffer, '\n'))) {
+        *lineend = '\0';
+      }
+      if ((lineend = strchr(buffer, '\r'))) {
+        *lineend = '\0';
+      }
+      return buffer;
+    } else {
+      perror("malloc");
+      exit(1);
+    }
+  } else {
+    return NULL;
+  }
+}
+
+void write_output(int fd, char *msg) {
+  if (write(fd, msg, strlen(msg)) < 0) {
+    perror("write");
+  }
 }
 void delete_player(int fd) {
-  if (playerlist->fd == fd) {
-    playerlist = playerlist->next;
-  } else {
-    struct player *iter_player = playerlist;
-    while (iter_player->next != NULL) {
-      if (iter_player->next->fd == fd) {
-        iter_player->next = iter_player->next->next;
-        break;
+  if (playerlist != NULL) {
+    if (playerlist->fd == fd) {
+      playerlist = playerlist->next;
+    } else {
+      struct player *iter_player = playerlist;
+      while (iter_player->next != NULL) {
+        if (iter_player->next->fd == fd) {
+          iter_player->next = iter_player->next->next;
+          break;
+        }
       }
     }
   }
 }
 
-void append_player(struct player *p) {
+void append_player_to_list(struct player *p) {
   if (playerlist == NULL) {
     playerlist = p;
   } else {
@@ -143,33 +186,123 @@ void append_player(struct player *p) {
   }
 }
 
-struct player *get_player(int fd) {
+struct player *get_player(int fd, char *name) {
   struct player *new_player = malloc(sizeof(struct player));
-  new_player->fd = fd;
-  new_player->next = NULL;
-  return new_player;
+  if (new_player != NULL) {
+    new_player->fd = fd;
+    new_player->next = NULL;
+    new_player->name = name;
+    int pebbles = compute_average_pebbles();
+    int pits[NPITS + 1] = {pebbles,pebbles,pebbles,pebbles,pebbles,pebbles};
+    memcpy(new_player->pits, pits, sizeof(pits));
+    return new_player;
+  } else {
+    perror("malloc");
+    exit(1);
+  }
 }
 
-// char* get_name(int fd) {
-//     char welcome[20] = "Welcome to Mancala. What is your name?\n";
-//     write(fd, welcome, strlen(welcome));
+void add_player(int fd) {
+  char *name = get_name(fd);
+  if (name != NULL) {
+    append_player_to_list(get_player(fd, name));
+    char msg[100];
+    snprintf(msg, sizeof msg, "%s has joined the game\r\n", name);
+    broadcast(msg);
+    write_output(fd, game_stat());
+  }
+}
 
-// }
+char *game_stat() {
+  char *stat = malloc(sizeof(char) * 1024);
 
-char* get_input(int fd) {
-    // 1kb buffer
-    char* buff=malloc(sizeof(char)*1024);
-    int len;
-    if ((len=read(fd, buff, 1023)) <0) {
-        perror("read");
-    } else if (len==0) {
-        delete_player(fd);
-        close(fd);
+  if (stat != NULL) {
+    stat[0] = '\0';
+    struct player *iter_player = playerlist;
+    while (iter_player != NULL) {
+      strcat(stat, player_to_string(iter_player));
+      strcat(stat, "\n");
+      iter_player = iter_player->next;
+    }
+  } else {
+    perror("malloc");
+    exit(1);
+  }
+  return stat;
+}
+
+bool is_name_duplicate(char *name) {
+  struct player *iter_player = playerlist;
+  while (iter_player != NULL) {
+    if (strcmp(name, iter_player->name) == 0) {
+      return true;
     } else {
-        buff[len]='\0';
+      iter_player = iter_player->next;
+    }
+  }
+  return false;
+}
+
+char *get_name(int fd) {
+  char welcome[20] = "Welcome to Mancala. ";
+  char again[20] = "What is your name?\r\n";
+  char taken_msg[100] =
+      "Sorry, someone else already has that name.  Please choose another.\r\n";
+  write_output(fd, welcome);
+  bool is_set = false;
+  char *name;
+  while (!is_set) {
+    write_output(fd, again);
+    name = get_input_without_newline(get_input(fd, MAXNAME));
+    if (name != NULL) {
+      if (strlen(name) == 0) {
+        is_set = false;
+      } else if (is_name_duplicate(name)) {
+        write_output(fd, taken_msg);
+        is_set = false;
+      } else {
+        is_set = true;
+      }
+    } else {
+      return NULL;
+      break;
+    }
+  }
+  return name;
+}
+
+char *player_to_string(struct player *p) {
+  char *result = malloc(sizeof(char) * 1024);
+  char buffer[1024];
+  int *pits = p->pits;
+  snprintf(buffer, sizeof(buffer),
+           "%s: [0]%d [1]%d [2]%d [3]%d [4]%d [5]%d [end pit]%d", p->name,
+           pits[0], pits[1], pits[2], pits[3], pits[4], pits[5], pits[6]);
+  strcpy(result, buffer);
+  return result;
+}
+
+char *get_input(int fd, int buffersize) {
+  // 1kb buffer
+  char *buff = malloc(sizeof(char) * buffersize);
+  if (buff != NULL) {
+    int len;
+    if ((len = read(fd, buff, buffersize - 2)) < 0) {
+      perror("read");
+    } else if (len == 0) {
+      close(fd);
+      delete_player(fd);
+      buff = NULL;
+    } else {
+      buff[len] = '\0';
     }
     return buff;
+  } else {
+    perror("malloc");
+    exit(1);
+  }
 }
+
 void parseargs(int argc, char **argv) {
   int c, status = 0;
   while ((c = getopt(argc, argv, "p:")) != EOF) {
